@@ -14,7 +14,8 @@ interface UserRankInfo {
   totalPoints: number;
 }
 
-const defaultRankInfo: UserRankInfo = { rank: '-', totalPoints: 0 };
+const DASHBOARD_MATCH_LIMIT = 24;
+
 
 const pickRank = (data: { final?: UserRankInfo; overall?: UserRankInfo } | undefined): UserRankInfo =>
   data?.final ?? data?.overall ?? defaultRankInfo;
@@ -125,21 +126,10 @@ const Dashboard: React.FC = () => {
   };
 
   const displayMatches = useMemo(() => {
-    const now = Date.now();
-
-    const upcoming = matches.filter((m) => {
-      const status = String(m.status || '').trim().toLowerCase();
-      if (status === 'completed') return false;
-      if (status === 'ongoing') return true;
-
-      const kickoff = new Date(m.matchTime).getTime();
-      if (Number.isNaN(kickoff)) return false;
-      return kickoff >= now;
-    });
-
-    return [...upcoming]
+    return [...matches]
+      .filter((m) => String(m.status ?? '').toLowerCase() !== 'completed')
       .sort((a, b) => new Date(a.matchTime).getTime() - new Date(b.matchTime).getTime())
-      .slice(0, 24);
+      .slice(0, DASHBOARD_MATCH_LIMIT);
   }, [matches]);
 
   const rankDisplay = myRank.rank === '-' ? '–' : `#${myRank.rank}`;
@@ -182,7 +172,10 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div>
-          <h2 className="font-display text-lg font-bold text-slate-900 mb-4">Next 24 matches</h2>
+          <h2 className="font-display text-lg font-bold text-slate-900 mb-1">Next 24 matches</h2>
+          <p className="text-sm text-slate-500 mb-4">
+            Showing {displayMatches.length} of {matches.length} loaded
+          </p>
 
           {loading ? (
             <div className="flex flex-col items-center py-12">

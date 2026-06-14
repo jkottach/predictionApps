@@ -84,9 +84,12 @@ class ApiService {
   }
 
   getAllMatches(status?: string, page?: number, limit?: number) {
-    return this.client.get('/matches', {
-      params: { status, page, limit },
-    });
+    const params: Record<string, string | number> = {
+      page: page ?? 1,
+      limit: limit ?? 100,
+    };
+    if (status) params.status = status;
+    return this.client.get('/matches', { params });
   }
 
   getMatch(matchId: string) {

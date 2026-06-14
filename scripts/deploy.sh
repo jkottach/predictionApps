@@ -57,6 +57,12 @@ mkdir -p "$APP_ROOT/mandrake/dist"
 rm -rf "$APP_ROOT/mandrake/dist"/*
 cp -r dist/* "$APP_ROOT/mandrake/dist/"
 
+# Verify deployed bundles include 24-match dashboard limit
+if ! grep -rq 'slice(0,24)' "$APP_ROOT/fcc/dist/assets" 2>/dev/null; then
+  echo "ERROR: FCC dist missing slice(0,24) — frontend deploy may be stale"
+  exit 1
+fi
+
 cd "$APP_ROOT"
 
 if command -v nginx &>/dev/null; then
