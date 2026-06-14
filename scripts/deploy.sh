@@ -7,6 +7,30 @@ APP_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$APP_ROOT"
 
+verify_google_client_in_dist() {
+  local dist_dir="$1"
+  if ! grep -rqE '[0-9]+-[^"[:space:]]+\.apps\.googleusercontent\.com' "$dist_dir/assets" 2>/dev/null; then
+    echo "ERROR: No valid VITE_GOOGLE_CLIENT_ID in $dist_dir — check frontend/.env.*.production"
+    exit 1
+  fi
+}
+
+build_frontend_tenant() {
+  local tenant="$1"
+  local env_file="$APP_ROOT/frontend/.env.${tenant}.production"
+  if [[ ! -f "$env_file" ]]; then
+    echo "ERROR: Missing $env_file"
+    exit 1
+  fi
+  echo "==> Building ${tenant} frontend (loading $env_file)..."
+  set -a
+  # shellcheck source=/dev/null
+  source "$env_file"
+  set +a
+  npm run "build:${tenant}"
+  verify_google_client_in_dist "$APP_ROOT/frontend/dist"
+}
+
 echo "==> Building API..."
 cd api
 npm ci
@@ -23,13 +47,12 @@ fi
 echo "==> Building FCC frontend..."
 cd frontend
 npm ci
-npm run build:fcc
+build_frontend_tenant fcc
 mkdir -p "$APP_ROOT/fcc/dist"
 rm -rf "$APP_ROOT/fcc/dist"/*
 cp -r dist/* "$APP_ROOT/fcc/dist/"
 
-echo "==> Building Mandrake frontend..."
-npm run build:mandrake
+build_frontend_tenant mandrake
 mkdir -p "$APP_ROOT/mandrake/dist"
 rm -rf "$APP_ROOT/mandrake/dist"/*
 cp -r dist/* "$APP_ROOT/mandrake/dist/"

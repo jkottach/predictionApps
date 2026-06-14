@@ -49,7 +49,7 @@ const Dashboard: React.FC = () => {
     setLoadError('');
 
     const [matchesResult, predictionsResult, statsResult] = await Promise.allSettled([
-      apiService.getAllMatches('scheduled', 1, 50),
+      apiService.getAllMatches('scheduled', 1, 100),
       apiService.getUserPredictions(1, 100),
       apiService.getUserStats(),
     ]);
@@ -138,7 +138,7 @@ const Dashboard: React.FC = () => {
 
     return [...openForPrediction]
       .sort((a, b) => new Date(a.matchTime).getTime() - new Date(b.matchTime).getTime())
-      .slice(0, 5);
+      .slice(0, 24);
   }, [matches]);
 
   const rankDisplay = myRank.rank === '-' ? '–' : `#${myRank.rank}`;
@@ -181,7 +181,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div>
-          <h2 className="font-display text-lg font-bold text-slate-900 mb-4">Matches to predict</h2>
+          <h2 className="font-display text-lg font-bold text-slate-900 mb-4">Next 24 matches</h2>
 
           {loading ? (
             <div className="flex flex-col items-center py-12">
