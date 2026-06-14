@@ -7,16 +7,21 @@ export function getApiPackageRoot(): string {
   return path.resolve(__dirname, '../..');
 }
 
-/** Load `api/.env` and optional `api/.env.local` (local overrides). */
+/** Load env file(s). Set API_ENV_FILE=.env.fcc (or .env.mandrake) for multi-tenant PM2. */
 export function loadApiEnv(): void {
   const root = getApiPackageRoot();
 
-  for (const file of ['.env', '.env.local']) {
+  const files = process.env.API_ENV_FILE
+    ? [process.env.API_ENV_FILE]
+    : ['.env', '.env.local'];
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]!;
     const envPath = path.join(root, file);
     if (fs.existsSync(envPath)) {
       dotenv.config({
         path: envPath,
-        override: file === '.env.local',
+        override: i > 0,
       });
     }
   }

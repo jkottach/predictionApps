@@ -17,7 +17,12 @@ build/
 .env.*
 !.env.example
 !**/.env.example
-!frontend/.env.production
+!frontend/.env.fcc
+!frontend/.env.mandrake
+!frontend/.env.fcc.production
+!frontend/.env.mandrake.production
+!api/.env.fcc.example
+!api/.env.mandrake.example
 
 # Azurite (local Azure Storage emulator)
 __azurite_db_*

@@ -1,3 +1,7 @@
+# Azure Deployment (deprecated)
+
+> **This project now deploys to EC2.** See **[EC2_DEPLOYMENT.md](./EC2_DEPLOYMENT.md)** for current instructions. The content below is kept for reference during migration.
+
 # Azure Deployment: Static Web Apps + API Functions
 
 | Layer | Azure service | Folder |

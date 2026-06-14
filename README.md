@@ -1,19 +1,22 @@
-# FCC Worldcup 26 Predictor
+# World Cup 26 Predictor (FCC + Mandrake)
 
-Match prediction app: submit scores, earn points, view leaderboards.
+Match prediction app: submit scores, earn points, view leaderboards. One codebase, two white-label tenants (**FCC** and **Mandrake**).
 
 ## Stack
 
 | Layer | Tech |
 |-------|------|
-| Frontend | React, TypeScript, Vite, Tailwind — **Azure Static Web Apps** |
-| API | Express, MongoDB — **Azure Functions** (linked to SWA at `/api`) |
+| Frontend | React, TypeScript, Vite, Tailwind |
+| API | Express, MongoDB |
+| Production | EC2 — Nginx + PM2 — see **[EC2_DEPLOYMENT.md](./EC2_DEPLOYMENT.md)** |
 
 ## Project layout
 
 ```
-frontend/     React app
-api/          Express API + Azure Functions host
+frontend/     React app (tenant branding via VITE_TENANT)
+api/          Express API
+deploy/       Nginx + PM2 configs
+scripts/      deploy.sh
 ```
 
 ## Local development
@@ -25,11 +28,11 @@ cp .env.example .env   # set MONGODB_URI, JWT_SECRET, GOOGLE_CLIENT_ID
 npm install
 npm run dev            # http://localhost:5001
 
-# Frontend (proxies /api → :5001)
+# Frontend — pick a tenant
 cd frontend
-cp .env.example .env
 npm install
-npm run dev            # http://localhost:3000
+npm run dev:fcc        # FCC branding → http://localhost:3000
+npm run dev:mandrake   # Mandrake branding
 ```
 
 ### Seed data
@@ -41,19 +44,34 @@ npm run seed:mongo
 
 MongoDB collections: `users`, `teams`, `matches`.
 
+## Tenants
+
+Branding is configured in `frontend/src/config/tenant.ts`. Build per tenant:
+
+```bash
+cd frontend
+npm run build:fcc
+npm run build:mandrake
+```
+
+On EC2, `scripts/deploy.sh` builds both and deploys to separate Nginx roots.
+
 ## Production
 
-See **[AZURE_DEPLOYMENT.md](./AZURE_DEPLOYMENT.md)** for Static Web App settings, CI/CD, and troubleshooting.
+See **[EC2_DEPLOYMENT.md](./EC2_DEPLOYMENT.md)** for EC2 setup, sslip.io hostnames, SSL, MongoDB Atlas, and Google OAuth.
 
-Push to `fcc` deploys via `.github/workflows/azure-static-web-apps-ambitious-stone-0e23c2000.yml`.
+Push to `main` deploys via `.github/workflows/deploy-ec2.yml` (secrets: `EC2_HOST`, `EC2_USER`=`ec2-user`, `EC2_SSH_KEY`).
+
+**Amazon Linux setup scripts:** `scripts/setup-amazon-linux.sh`, `scripts/configure-nginx.sh`, `scripts/deploy.sh`
 
 ## Environment
 
 | Where | What |
 |-------|------|
-| Local API | `api/.env` — always loaded from `api/` (not shell cwd) |
-| Local frontend | `frontend/.env` (copy from `frontend/.env.example`) |
-| **Azure API** | Portal → Static Web App → **Environment variables** — see **[AZURE_DEPLOYMENT.md](./AZURE_DEPLOYMENT.md)** |
-| **Azure frontend build** | `frontend/.env.production` (committed) |
+| Local API | `api/.env` |
+| Local frontend | `frontend/.env` or `npm run dev:fcc` / `dev:mandrake` |
+| EC2 API (FCC) | `api/.env.fcc` — templates: `api/.env.fcc.example` |
+| EC2 API (Mandrake) | `api/.env.mandrake` — templates: `api/.env.mandrake.example` |
+| Production frontend build | `frontend/.env.fcc.production`, `frontend/.env.mandrake.production` |
 
-Missing Azure API env vars cause `/api/leaderboard/top` → **500**.
+Missing API env vars cause `/api/leaderboard/top` → **500**.

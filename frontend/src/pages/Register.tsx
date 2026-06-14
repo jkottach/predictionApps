@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/apiService';
 import { useAuth } from '../hooks/useAuth';
+import { tenant } from '../config/tenant';
 import AuthCard from '../components/AuthCard';
 import { alertError, btnPrimary, input, label, linkAccent } from '../theme';
 
@@ -52,7 +53,7 @@ const Register: React.FC = () => {
   };
 
   return (
-    <AuthCard title="Join FCC Worldcup 26" subtitle="Create your account to start predicting">
+    <AuthCard title={tenant.registerTitle} subtitle="Create your account to start predicting">
       {error && <div className={alertError}>{error}</div>}
 
       <form onSubmit={handleSubmit} className="space-y-4">

@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:fcc": "vite --mode fcc",
+    "dev:mandrake": "vite --mode mandrake",
     "build": "tsc && vite build",
+    "build:fcc": "tsc && vite build --mode fcc",
+    "build:mandrake": "tsc && vite build --mode mandrake",
     "preview": "vite preview",
     "lint": "eslint src --ext .ts,.tsx"
   },

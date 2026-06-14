@@ -13,6 +13,7 @@ import {
   needsProfileSetup,
   useAzureAuth,
 } from '../services/swaAuth';
+import { tenant } from '../config/tenant';
 import AuthCard from '../components/AuthCard';
 import { alertError, spinner } from '../theme';
 
@@ -113,7 +114,7 @@ const Login: React.FC = () => {
   }
 
   return (
-    <AuthCard title="Sign in to FCC Worldcup 26" subtitle="Use Google to join the prediction league">
+    <AuthCard title={tenant.loginTitle} subtitle="Use Google to join the prediction league">
       {error && <div className={alertError}>{error}</div>}
 
       <div className="flex flex-col items-center gap-4">
