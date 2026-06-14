@@ -16,6 +16,7 @@ interface UserRankInfo {
 
 const DASHBOARD_MATCH_LIMIT = 24;
 
+const defaultRankInfo: UserRankInfo = { rank: '-', totalPoints: 0 };
 
 const pickRank = (data: { final?: UserRankInfo; overall?: UserRankInfo } | undefined): UserRankInfo =>
   data?.final ?? data?.overall ?? defaultRankInfo;
