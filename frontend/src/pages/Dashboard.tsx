@@ -171,10 +171,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div>
-          <h2 className="font-display text-lg font-bold text-slate-900 mb-1">Next 24 matches</h2>
-          <p className="text-sm text-slate-500 mb-4">
-            Showing {displayMatches.length} of {matches.length} loaded
-          </p>
+          <h2 className="font-display text-lg font-bold text-slate-900 mb-4">Next matches to predict</h2>
 
           {loading ? (
             <div className="flex flex-col items-center py-12">
