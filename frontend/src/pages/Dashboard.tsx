@@ -49,7 +49,7 @@ const Dashboard: React.FC = () => {
     setLoadError('');
 
     const [matchesResult, predictionsResult, statsResult] = await Promise.allSettled([
-      apiService.getAllMatches('scheduled', 1, 100),
+      apiService.getAllMatches(undefined, 1, 100),
       apiService.getUserPredictions(1, 100),
       apiService.getUserStats(),
     ]);
@@ -127,16 +127,17 @@ const Dashboard: React.FC = () => {
   const displayMatches = useMemo(() => {
     const now = Date.now();
 
-    const openForPrediction = matches.filter((m) => {
+    const upcoming = matches.filter((m) => {
       const status = String(m.status || '').trim().toLowerCase();
-      if (status !== 'scheduled' && status !== 'ongoing') return false;
+      if (status === 'completed') return false;
+      if (status === 'ongoing') return true;
 
-      const deadline = new Date(m.predictionsEndingTime).getTime();
-      if (Number.isNaN(deadline)) return false;
-      return deadline > now;
+      const kickoff = new Date(m.matchTime).getTime();
+      if (Number.isNaN(kickoff)) return false;
+      return kickoff >= now;
     });
 
-    return [...openForPrediction]
+    return [...upcoming]
       .sort((a, b) => new Date(a.matchTime).getTime() - new Date(b.matchTime).getTime())
       .slice(0, 24);
   }, [matches]);
