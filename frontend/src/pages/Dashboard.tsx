@@ -14,8 +14,6 @@ interface UserRankInfo {
   totalPoints: number;
 }
 
-const DASHBOARD_MATCH_LIMIT = 24;
-
 const defaultRankInfo: UserRankInfo = { rank: '-', totalPoints: 0 };
 
 const pickRank = (data: { final?: UserRankInfo; overall?: UserRankInfo } | undefined): UserRankInfo =>
@@ -130,7 +128,7 @@ const Dashboard: React.FC = () => {
     return [...matches]
       .filter((m) => String(m.status ?? '').toLowerCase() !== 'completed')
       .sort((a, b) => new Date(a.matchTime).getTime() - new Date(b.matchTime).getTime())
-      .slice(0, DASHBOARD_MATCH_LIMIT);
+      .slice(0, 24);
   }, [matches]);
 
   const rankDisplay = myRank.rank === '-' ? '–' : `#${myRank.rank}`;
