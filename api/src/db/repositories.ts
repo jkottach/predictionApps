@@ -101,8 +101,14 @@ export async function upsertUserPrediction(
     submittedTime: prediction.submittedTime ?? new Date(),
   };
 
-  const idx = user.predictions.findIndex((p) => p.matchId === matchId);
-  const predictions = [...user.predictions];
+  let predictions = [...user.predictions];
+  if (prediction.matchTag) {
+    predictions = predictions.filter(
+      (p) => p.matchId === matchId || p.matchTag !== prediction.matchTag
+    );
+  }
+
+  const idx = predictions.findIndex((p) => p.matchId === matchId);
   if (idx >= 0) {
     predictions[idx] = { ...predictions[idx], ...entry, points: predictions[idx].points ?? entry.points };
   } else {
