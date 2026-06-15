@@ -20,7 +20,7 @@ const MyPredictions: React.FC = () => {
   const fetchPredictions = async (page: number) => {
     try {
       setLoading(true);
-      const response = await apiService.getUserPredictions(page, 10);
+      const response = await apiService.getUserPredictionsFromResults(page, 10);
       setPredictions(response.data.predictions);
       setPagination(response.data.pagination);
     } catch (error) {
@@ -50,7 +50,7 @@ const MyPredictions: React.FC = () => {
     <div className="min-h-full bg-slate-50">
       <PageHero
         title="My predictions"
-        subtitle="Track your picks and points"
+        subtitle="Review scored predictions from completed matches"
         badge="History"
       />
 
@@ -77,8 +77,6 @@ const MyPredictions: React.FC = () => {
                   typeof match === 'object' && match !== null
                     ? match.team2Info?.teamName || match.team2
                     : 'Unknown';
-                const isCompleted =
-                  typeof match === 'object' && match !== null && match.status === 'completed';
                 const pred1 = prediction.team1PredictedScore ?? prediction.team1Score;
                 const pred2 = prediction.team2PredictedScore ?? prediction.team2Score;
                 const points = getPoints(prediction);
@@ -98,15 +96,9 @@ const MyPredictions: React.FC = () => {
                             : '—'}
                         </p>
                       </div>
-                      {isCompleted ? (
-                        <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-800">
-                          Done
-                        </span>
-                      ) : (
-                        <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-800">
-                          Pending
-                        </span>
-                      )}
+                      <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-800">
+                        Done
+                      </span>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2">
@@ -119,9 +111,7 @@ const MyPredictions: React.FC = () => {
                       <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-center">
                         <p className="mb-1 text-[10px] font-semibold text-slate-500">Actual</p>
                         <p className="font-mono text-lg font-bold text-slate-700">
-                          {isCompleted &&
-                          typeof match === 'object' &&
-                          match !== null
+                          {typeof match === 'object' && match !== null
                             ? `${match.team1Score} - ${match.team2Score}`
                             : '—'}
                         </p>
@@ -163,7 +153,7 @@ const MyPredictions: React.FC = () => {
         ) : (
           <div className={`${cardPad} py-12 text-center`}>
             <p className="mb-4 text-sm font-medium text-slate-600">
-              You haven&apos;t made any predictions yet.
+              No completed match predictions yet. Finished games will appear here once results are in.
             </p>
             <Link to="/dashboard" className={`${btnPrimary} inline-flex max-w-xs mx-auto`}>
               Start predicting

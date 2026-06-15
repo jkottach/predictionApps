@@ -294,6 +294,12 @@ export async function findMatchById(matchId: string): Promise<MatchDocument | nu
   return getMatchesCollection().findOne({ _id: oid });
 }
 
+export async function findMatchesByIds(matchIds: string[]): Promise<MatchDocument[]> {
+  const oids = matchIds.map((id) => toObjectId(id)).filter((oid): oid is ObjectId => oid !== null);
+  if (oids.length === 0) return [];
+  return getMatchesCollection().find({ _id: { $in: oids } }).toArray();
+}
+
 export async function listMatches(options: {
   status?: string;
   page: number;

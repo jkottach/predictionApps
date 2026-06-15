@@ -4,6 +4,7 @@ import { logger } from '../lib/logger';
 import {
   attachMatchToPredictions,
   findMatchById,
+  findMatchesByIds,
   findUserById,
   updateUserById,
   upsertUserPrediction,
@@ -48,7 +49,7 @@ export const submitPrediction = async (req: AuthRequest, res: Response) => {
 export const getUserPredictions = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
-    const { matchId, page = '1', limit = '10' } = req.query;
+    const { matchId, page = '1', limit = '10', status } = req.query;
 
     if (!userId) return res.status(401).json({ error: 'User not authenticated' });
 
@@ -58,6 +59,15 @@ export const getUserPredictions = async (req: AuthRequest, res: Response) => {
     let predictions = [...user.predictions];
     if (matchId) {
       predictions = predictions.filter((p) => p.matchId === String(matchId));
+    }
+
+    if (status === 'completed') {
+      const matchIds = [...new Set(predictions.map((p) => p.matchId))];
+      const matches = await findMatchesByIds(matchIds);
+      const completedMatchIds = new Set(
+        matches.filter((m) => m.status === 'completed').map((m) => m._id.toString())
+      );
+      predictions = predictions.filter((p) => completedMatchIds.has(p.matchId));
     }
 
     predictions.sort((a, b) => new Date(b.submittedTime).getTime() - new Date(a.submittedTime).getTime());
@@ -159,5 +169,6 @@ export const deletePrediction = async (req: AuthRequest, res: Response) => {
 };
 
 export const getUserPredictionsFromResults = async (req: AuthRequest, res: Response) => {
+  req.query.status = 'completed';
   return getUserPredictions(req, res);
 };
