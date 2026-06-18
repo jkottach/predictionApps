@@ -81,10 +81,32 @@ export interface Prediction {
   submittedTime: string;
   points: number;
   comment?: string;
-  historicRank?: {
-    finalRank: number;
-    dailyRank: number;
-  } | null;
+  totalPoints?: number;
+  overallRank?: number | null;
+  previousOverallRank?: number | null;
+}
+
+export interface MatchEarnerEntry {
+  rank: number;
+  userId: string;
+  name: string;
+  points: number;
+  team1Score: number;
+  team2Score: number;
+}
+
+export interface LiveMatchPredictionEntry {
+  userId: string;
+  name: string;
+  team1Score: number;
+  team2Score: number;
+  submittedTime: string;
+  comment?: string | null;
+}
+
+export interface LiveMatchPredictionsGroup {
+  match: Match;
+  predictions: LiveMatchPredictionEntry[];
 }
 
 export interface LeaderboardEntry {

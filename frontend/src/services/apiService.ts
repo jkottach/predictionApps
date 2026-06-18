@@ -92,6 +92,24 @@ class ApiService {
     return this.client.get('/matches', { params });
   }
 
+  getOpenMatches(page?: number, limit?: number) {
+    return this.client.get('/matches', {
+      params: { openForPredictions: 'true', page: page ?? 1, limit: limit ?? 50 },
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
+  }
+
+  getLatestCompletedMatchTopEarners(limit?: number) {
+    return this.client.get('/matches/latest-completed/top-earners', {
+      params: { limit: limit ?? 50 },
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
+  }
+
+  getLiveMatchPredictions() {
+    return this.client.get('/matches/live/predictions');
+  }
+
   getMatch(matchId: string) {
     return this.client.get(`/matches/${matchId}`);
   }

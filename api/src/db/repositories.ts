@@ -1,5 +1,6 @@
 import { ObjectId, Filter } from 'mongodb';
 import { getUsersCollection, getTeamsCollection, getMatchesCollection, toObjectId } from '../lib/mongodb';
+import { canRevealLivePredictions } from '../utils/matchStatus';
 import type {
   EmbeddedPrediction,
   GroupStageGroup,
@@ -14,6 +15,11 @@ import {
   sumPredictionPoints,
   teamMapFromDocs,
 } from './helpers';
+
+/** Active users; legacy docs without `isActive` are included. */
+const activeUserFilter: Filter<UserDocument> = {
+  $or: [{ isActive: true }, { isActive: { $exists: false } }],
+};
 
 // ── Users (`users` collection) ───────────────────────────────────────────────
 
@@ -142,6 +148,266 @@ export async function findUsersWithPredictionForMatch(matchId: string): Promise<
   return getUsersCollection().find({ 'predictions.matchId': matchId }).toArray();
 }
 
+export async function findLatestCompletedMatch(): Promise<MatchDocument | null> {
+  return getMatchesCollection()
+    .find({ status: 'completed' })
+    .sort({ updatedAt: -1, matchTime: -1 })
+    .limit(1)
+    .next();
+}
+
+function leaderboardDisplayName(user: UserDocument): string {
+  return `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email || 'User';
+}
+
+export interface MatchEarnerRow {
+  rank: number;
+  userId: string;
+  name: string;
+  points: number;
+  team1Score: number;
+  team2Score: number;
+}
+
+export async function listTopEarnersForMatch(
+  matchId: string,
+  limit: number
+): Promise<MatchEarnerRow[]> {
+  const users = await getUsersCollection()
+    .find({
+      ...activeUserFilter,
+      'predictions.matchId': matchId,
+    })
+    .toArray();
+
+  const rows = users
+    .map((user) => {
+      const pred = user.predictions.find((p) => p.matchId === matchId);
+      if (!pred) return null;
+      return {
+        userId: user._id.toString(),
+        name: leaderboardDisplayName(user),
+        points: pred.points ?? 0,
+        team1Score: pred.team1Score,
+        team2Score: pred.team2Score,
+      };
+    })
+    .filter((row): row is Omit<MatchEarnerRow, 'rank'> => row !== null)
+    .sort((a, b) => {
+      const diff = b.points - a.points;
+      if (diff !== 0) return diff;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
+
+  let denseRank = 0;
+  let previousPoints: number | null = null;
+
+  const ranked: MatchEarnerRow[] = rows.map((row) => {
+    if (previousPoints === null || row.points !== previousPoints) {
+      denseRank += 1;
+      previousPoints = row.points;
+    }
+    return { ...row, rank: denseRank };
+  });
+
+  return ranked.slice(0, limit);
+}
+
+export interface LiveMatchPredictionRow {
+  userId: string;
+  name: string;
+  team1Score: number;
+  team2Score: number;
+  submittedTime: Date;
+  comment?: string | null;
+}
+
+export async function listLiveMatchesWithPredictions(): Promise<
+  Array<{ match: MatchDocument; predictions: LiveMatchPredictionRow[] }>
+> {
+  const now = new Date();
+  const nowMs = now.getTime();
+
+  const candidates = await getMatchesCollection()
+    .find({
+      status: { $ne: 'completed' },
+      $or: [{ status: 'ongoing' }, { matchTime: { $lte: now } }],
+    })
+    .sort({ matchTime: 1 })
+    .toArray();
+
+  const results: Array<{ match: MatchDocument; predictions: LiveMatchPredictionRow[] }> = [];
+
+  for (const match of candidates) {
+    if (!canRevealLivePredictions(match, nowMs)) continue;
+
+    const matchId = match._id.toString();
+    const users = await getUsersCollection()
+      .find({
+        ...activeUserFilter,
+        'predictions.matchId': matchId,
+      })
+      .toArray();
+
+    const predictions: LiveMatchPredictionRow[] = [];
+
+    for (const user of users) {
+      const pred = user.predictions.find((p) => p.matchId === matchId);
+      if (!pred) continue;
+
+      predictions.push({
+        userId: user._id.toString(),
+        name: leaderboardDisplayName(user),
+        team1Score: pred.team1Score,
+        team2Score: pred.team2Score,
+        submittedTime: pred.submittedTime,
+        ...(pred.comment ? { comment: pred.comment } : {}),
+      });
+    }
+
+    predictions.sort((a, b) => {
+      const scoreDiff = b.team1Score - a.team1Score;
+      if (scoreDiff !== 0) return scoreDiff;
+      const team2Diff = b.team2Score - a.team2Score;
+      if (team2Diff !== 0) return team2Diff;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
+
+    results.push({ match, predictions });
+  }
+
+  return results;
+}
+
+function denseOverallRankFromTotals(
+  totals: Array<{ userId: string; total: number }>
+): Map<string, number | null> {
+  const sorted = [...totals].sort((a, b) => b.total - a.total);
+  const rankByUserId = new Map<string, number | null>();
+  let denseRank = 0;
+  let previousPoints: number | null = null;
+
+  for (const row of sorted) {
+    if (row.total <= 0) {
+      rankByUserId.set(row.userId, null);
+      continue;
+    }
+    if (previousPoints === null || row.total !== previousPoints) {
+      denseRank += 1;
+      previousPoints = row.total;
+    }
+    rankByUserId.set(row.userId, denseRank);
+  }
+
+  return rankByUserId;
+}
+
+export async function applyPredictionSnapshotsAtMilestone(
+  matchId: string,
+  completedMatchIds: Set<string>
+): Promise<number> {
+  const allUsers = await getUsersCollection().find(activeUserFilter).toArray();
+
+  const totals = allUsers.map((user) => ({
+    userId: user._id.toString(),
+    total: user.predictions
+      .filter((p) => completedMatchIds.has(p.matchId))
+      .reduce((sum, p) => sum + (p.points ?? 0), 0),
+  }));
+
+  const rankByUserId = denseOverallRankFromTotals(totals);
+  const totalByUserId = new Map(totals.map((t) => [t.userId, t.total]));
+
+  let updated = 0;
+
+  for (const user of allUsers) {
+    const idx = user.predictions.findIndex((p) => p.matchId === matchId);
+    if (idx < 0) continue;
+
+    const userId = user._id.toString();
+    const predictions = [...user.predictions];
+    const cumulativeTotalPoints = totalByUserId.get(userId) ?? 0;
+    const overallRank = rankByUserId.get(userId) ?? null;
+
+    predictions[idx] = {
+      ...predictions[idx],
+      cumulativeTotalPoints,
+      overallRank,
+    };
+
+    await updateUserById(userId, {
+      predictions,
+      totalPoints: cumulativeTotalPoints,
+    });
+    updated += 1;
+  }
+
+  return updated;
+}
+
+export async function backfillAllPredictionSnapshots(): Promise<{
+  matchesProcessed: number;
+  predictionsUpdated: number;
+}> {
+  const completedMatches = await getMatchesCollection()
+    .find({ status: 'completed' })
+    .sort({ matchTime: 1, sequence: 1 })
+    .toArray();
+
+  const completedMatchIds = new Set<string>();
+  let predictionsUpdated = 0;
+
+  for (const match of completedMatches) {
+    const id = match._id.toString();
+    completedMatchIds.add(id);
+    predictionsUpdated += await applyPredictionSnapshotsAtMilestone(id, completedMatchIds);
+  }
+
+  return { matchesProcessed: completedMatches.length, predictionsUpdated };
+}
+
+export async function applySnapshotsAfterMatchFinalized(matchId: string): Promise<void> {
+  const completedMatches = await getMatchesCollection()
+    .find({ status: 'completed' })
+    .sort({ matchTime: 1, sequence: 1 })
+    .toArray();
+  const completedMatchIds = new Set(completedMatches.map((m) => m._id.toString()));
+  await applyPredictionSnapshotsAtMilestone(matchId, completedMatchIds);
+}
+
+export async function computeOverallRankByPredictionId(
+  userId: string
+): Promise<Map<string, number | null>> {
+  const completedMatches = await getMatchesCollection()
+    .find({ status: 'completed' })
+    .sort({ matchTime: 1, sequence: 1 })
+    .toArray();
+
+  const allUsers = await getUsersCollection().find(activeUserFilter).toArray();
+  const completedMatchIds = new Set<string>();
+  const rankByPredictionId = new Map<string, number | null>();
+
+  for (const match of completedMatches) {
+    const matchId = match._id.toString();
+    completedMatchIds.add(matchId);
+
+    const totals = allUsers.map((user) => ({
+      userId: user._id.toString(),
+      total: user.predictions
+        .filter((p) => completedMatchIds.has(p.matchId))
+        .reduce((sum, p) => sum + (p.points ?? 0), 0),
+    }));
+
+    const rankByUserId = denseOverallRankFromTotals(totals);
+    const user = allUsers.find((u) => u._id.toString() === userId);
+    if (user?.predictions.some((p) => p.matchId === matchId)) {
+      rankByPredictionId.set(`${userId}_${matchId}`, rankByUserId.get(userId) ?? null);
+    }
+  }
+
+  return rankByPredictionId;
+}
+
 export async function getEarliestMatchKickoff(): Promise<Date | null> {
   const match = await getMatchesCollection()
     .find({ status: { $in: ['scheduled', 'ongoing'] } })
@@ -175,11 +441,6 @@ export async function upsertTournamentPrediction(
   await updateUserById(userId, { tournamentPrediction: entry });
   return entry;
 }
-
-/** Active users; legacy docs without `isActive` are included. */
-const activeUserFilter: Filter<UserDocument> = {
-  $or: [{ isActive: true }, { isActive: { $exists: false } }],
-};
 
 export async function listUsersByTotalPoints(limit: number): Promise<UserDocument[]> {
   return getUsersCollection()
@@ -308,11 +569,22 @@ export async function findMatchesByIds(matchIds: string[]): Promise<MatchDocumen
 
 export async function listMatches(options: {
   status?: string;
+  openForPredictions?: boolean;
   page: number;
   limit: number;
 }): Promise<{ matches: MatchDocument[]; total: number }> {
   const filter: Filter<MatchDocument> = {};
-  if (options.status) filter.status = options.status;
+  if (options.openForPredictions) {
+    const now = new Date();
+    const recentKickoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    filter.$or = [
+      { status: 'ongoing' },
+      { status: 'scheduled', predictionsEndingTime: { $gt: now } },
+      { status: 'scheduled', matchTime: { $gte: recentKickoff } },
+    ];
+  } else if (options.status) {
+    filter.status = options.status;
+  }
 
   const col = getMatchesCollection();
   const [matches, total] = await Promise.all([
@@ -425,6 +697,8 @@ export async function attachMatchToPredictions(
       points: p.points,
       comment: p.comment,
       submittedTime: p.submittedTime,
+      cumulativeTotalPoints: p.cumulativeTotalPoints,
+      overallRank: p.overallRank,
     };
   });
 }

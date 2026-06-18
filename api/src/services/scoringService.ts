@@ -1,4 +1,5 @@
 import {
+  applySnapshotsAfterMatchFinalized,
   findMatchById,
   findUsersWithPredictionForMatch,
   updateMatchById,
@@ -83,5 +84,6 @@ export const finalizeMatchScores = async (
   });
   if (!updated) throw new Error('Match not found');
   await processMatchResults(matchId);
+  await applySnapshotsAfterMatchFinalized(matchId);
   return updated;
 };
