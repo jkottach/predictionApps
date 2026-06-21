@@ -15,6 +15,7 @@ import {
   predictionCardShell,
   predictionCardSpinner,
 } from '../theme';
+import { groupPickResult, groupPickSelectClass } from '../utils/tournamentPicks';
 
 const EMPTY_FINALISTS: [string, string] = ['', ''];
 const EMPTY_SEMIS: [string, string, string, string] = ['', '', '', ''];
@@ -179,6 +180,7 @@ const TournamentPredictions: React.FC = () => {
   const [groups, setGroups] = useState<GroupStageGroupInfo[]>([]);
   const [groupChampions, setGroupChampions] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState<TournamentPrediction | null>(null);
+  const [officialGroupChampions, setOfficialGroupChampions] = useState<Record<string, string>>({});
   const [champion, setChampion] = useState('');
   const [finalists, setFinalists] = useState<[string, string]>([...EMPTY_FINALISTS]);
   const [semifinalists, setSemifinalists] = useState<[string, string, string, string]>([...EMPTY_SEMIS]);
@@ -213,6 +215,7 @@ const TournamentPredictions: React.FC = () => {
           const groupList: GroupStageGroupInfo[] = predRes.data?.groups ?? [];
           setSaved(pred);
           setGroups(groupList);
+          setOfficialGroupChampions(predRes.data?.officialGroupChampions ?? {});
           setDeadline(predRes.data?.deadline ?? null);
           setIsOpen(predRes.data?.isOpen !== false);
 
@@ -295,7 +298,9 @@ const TournamentPredictions: React.FC = () => {
           group,
           ...enrichFromGroups(groupChampions[group], groupTeams),
         })),
-        submittedTime: new Date().toISOString(),
+        points: saved?.points ?? 0,
+        submittedTime: saved?.submittedTime ?? new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2500);
@@ -395,6 +400,17 @@ const TournamentPredictions: React.FC = () => {
         </p>
       )}
 
+      {saved && !loading && (
+        <div className="mx-4 mb-3 flex items-center justify-between rounded-xl border border-white/15 bg-white/5 px-4 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40">
+            Tournament total points
+          </p>
+          <p className="font-display text-3xl font-bold tabular-nums text-emerald-400">
+            {saved.points ?? 0}
+          </p>
+        </div>
+      )}
+
       <div className="mx-4 border-t border-white/[0.08]" />
 
       <div className="px-4 py-4 space-y-4">
@@ -402,7 +418,13 @@ const TournamentPredictions: React.FC = () => {
           <div>
             <p className={predictionCardLabel}>Group champions (winner of each group)</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {groups.map(({ group, teams: groupTeams }) => (
+              {groups.map(({ group, teams: groupTeams }) => {
+                const pickResult = groupPickResult(
+                  group,
+                  groupChampions[group] ?? '',
+                  officialGroupChampions
+                );
+                return (
                 <div key={group}>
                   <label className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1">
                     Group {group}
@@ -412,7 +434,7 @@ const TournamentPredictions: React.FC = () => {
                     value={groupChampions[group] ?? ''}
                     disabled={!isOpen || submitting}
                     onChange={(e) => updateGroupChampion(group, e.target.value)}
-                    className={predictionCardSelect}
+                    className={`${predictionCardSelect} ${groupPickSelectClass(pickResult)}`}
                   >
                     <option value="" className="text-slate-900" />
                     {groupTeams.map((t) => (
@@ -422,7 +444,8 @@ const TournamentPredictions: React.FC = () => {
                     ))}
                   </select>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

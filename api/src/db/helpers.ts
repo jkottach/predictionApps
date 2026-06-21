@@ -22,6 +22,11 @@ function toIso(value: Date | string | undefined | null): string | null {
 }
 
 /** Explicit API shape — avoids BSON / spread issues in JSON responses. */
+/** Active users count toward leaderboard ranks; legacy docs without `isActive` are included. */
+export function isUserLeaderboardEligible(user: Pick<UserDocument, 'isActive'>): boolean {
+  return user.isActive === true || user.isActive === undefined;
+}
+
 export function formatMatchForApi(match: MatchDocument) {
   return {
     matchId: match._id.toString(),
@@ -33,6 +38,7 @@ export function formatMatchForApi(match: MatchDocument) {
     team2Info: match.team2Info ?? null,
     team1Score: match.team1Score ?? null,
     team2Score: match.team2Score ?? null,
+    penaltyWinner: match.penaltyWinner ?? null,
     matchTime: toIso(match.matchTime),
     predictionsEndingTime: toIso(match.predictionsEndingTime),
     round: match.round ?? '',

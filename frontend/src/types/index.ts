@@ -81,6 +81,8 @@ export interface Prediction {
   submittedTime: string;
   points: number;
   comment?: string;
+  penaltyWinner?: string | null;
+  cumulativeTotalPoints?: number;
   totalPoints?: number;
   overallRank?: number | null;
   previousOverallRank?: number | null;
@@ -102,6 +104,7 @@ export interface LiveMatchPredictionEntry {
   team2Score: number;
   submittedTime: string;
   comment?: string | null;
+  penaltyWinner?: string | null;
 }
 
 export interface LiveMatchPredictionsGroup {
@@ -111,6 +114,7 @@ export interface LiveMatchPredictionsGroup {
 
 export interface LeaderboardEntry {
   rank: number;
+  rankTrend?: 'up' | 'down' | 'unchanged' | null;
   totalPoints: number;
   name: string;
   state: string;

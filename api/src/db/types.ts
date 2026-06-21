@@ -8,6 +8,8 @@ export interface EmbeddedPrediction {
   points: number;
   comment?: string | null;
   submittedTime: Date;
+  /** Knockout draw only: `teamId` that wins the penalty shootout. */
+  penaltyWinner?: string | null;
   /** Cumulative points after this match was finalized. */
   cumulativeTotalPoints?: number;
   /** Overall leaderboard rank after this match was finalized. */
@@ -16,6 +18,20 @@ export interface EmbeddedPrediction {
 
 /** Group letter → winning nation `teamId` (e.g. `{ A: "MEX", B: "CAN" }`). */
 export type GroupChampionsPicks = Record<string, string>;
+
+/** Official tournament results stored in `settings` (`_id: "tournamentResults"`). */
+export interface TournamentOfficialResults {
+  champion: string;
+  finalists: [string, string];
+  semifinalists: [string, string, string, string];
+  groupChampions: GroupChampionsPicks;
+}
+
+/** `settings` collection document for official tournament results. */
+export interface TournamentResultsSettingsDocument extends Partial<TournamentOfficialResults> {
+  _id: string;
+  updatedAt?: Date;
+}
 
 /** Knockout bracket + group-stage picks stored on the user document. */
 export interface TournamentBracketPrediction {
@@ -85,6 +101,8 @@ export interface MatchDocument {
   team2Info?: TeamInfoEmbed | null;
   team1Score?: number | null;
   team2Score?: number | null;
+  /** Knockout draw only: `teamId` that won on penalties. */
+  penaltyWinner?: string | null;
   matchTime: Date;
   predictionsEndingTime: Date;
   round: string;

@@ -1,12 +1,15 @@
 import { ObjectId, Filter } from 'mongodb';
-import { getUsersCollection, getTeamsCollection, getMatchesCollection, toObjectId } from '../lib/mongodb';
+import { getDb, getUsersCollection, getTeamsCollection, getMatchesCollection, toObjectId } from '../lib/mongodb';
 import { canRevealLivePredictions } from '../utils/matchStatus';
 import type {
   EmbeddedPrediction,
+  GroupChampionsPicks,
   GroupStageGroup,
   MatchDocument,
   TeamDocument,
   TournamentBracketPrediction,
+  TournamentOfficialResults,
+  TournamentResultsSettingsDocument,
   UserDocument,
 } from './types';
 import {
@@ -105,6 +108,7 @@ export async function upsertUserPrediction(
     points: prediction.points ?? 0,
     comment: prediction.comment ?? null,
     submittedTime: prediction.submittedTime ?? new Date(),
+    penaltyWinner: prediction.penaltyWinner ?? null,
   };
 
   let predictions = [...user.predictions];
@@ -417,6 +421,40 @@ export async function getEarliestMatchKickoff(): Promise<Date | null> {
   return match?.matchTime ?? null;
 }
 
+const TOURNAMENT_RESULTS_DOC_ID = 'tournamentResults';
+
+export async function loadTournamentOfficialResults(): Promise<TournamentOfficialResults | null> {
+  const doc = await getDb()
+    .collection<TournamentResultsSettingsDocument>('settings')
+    .findOne({ _id: TOURNAMENT_RESULTS_DOC_ID });
+  if (!doc) return null;
+
+  const groupChampions: GroupChampionsPicks = {};
+  const raw = doc.groupChampions as GroupChampionsPicks | undefined;
+  if (raw && typeof raw === 'object') {
+    for (const [group, teamId] of Object.entries(raw)) {
+      const g = group.trim().toUpperCase();
+      const id = String(teamId).trim().toUpperCase();
+      if (g && id) groupChampions[g] = id;
+    }
+  }
+
+  return {
+    champion: String(doc.champion ?? '').trim().toUpperCase(),
+    finalists: [
+      String(doc.finalists?.[0] ?? '').trim().toUpperCase(),
+      String(doc.finalists?.[1] ?? '').trim().toUpperCase(),
+    ],
+    semifinalists: [
+      String(doc.semifinalists?.[0] ?? '').trim().toUpperCase(),
+      String(doc.semifinalists?.[1] ?? '').trim().toUpperCase(),
+      String(doc.semifinalists?.[2] ?? '').trim().toUpperCase(),
+      String(doc.semifinalists?.[3] ?? '').trim().toUpperCase(),
+    ],
+    groupChampions,
+  };
+}
+
 export async function upsertTournamentPrediction(
   userId: string,
   data: Pick<
@@ -455,6 +493,71 @@ export async function countUsersAhead(totalPoints: number): Promise<number> {
     ...activeUserFilter,
     totalPoints: { $gt: totalPoints },
   });
+}
+
+/** Distinct point totals strictly above the given score (for dense rank). */
+export async function countDistinctPointTiersAhead(totalPoints: number): Promise<number> {
+  const tiers = await getUsersCollection().distinct('totalPoints', {
+    ...activeUserFilter,
+    totalPoints: { $gt: totalPoints },
+  });
+  return tiers.length;
+}
+
+export async function listCompletedMatchIdsInOrder(): Promise<string[]> {
+  const completedMatches = await getMatchesCollection()
+    .find({ status: 'completed' })
+    .sort({ matchTime: 1, sequence: 1 })
+    .project({ _id: 1 })
+    .toArray();
+  return completedMatches.map((match) => match._id.toString());
+}
+
+export async function computeMatchOnlyRanksAtMilestone(
+  completedMatchIds: string[]
+): Promise<Map<string, number | null>> {
+  const allUsers = await getUsersCollection().find(activeUserFilter).toArray();
+  const completedSet = new Set(completedMatchIds);
+  const totals = allUsers.map((user) => ({
+    userId: user._id.toString(),
+    total: user.predictions
+      .filter((p) => completedSet.has(p.matchId))
+      .reduce((sum, p) => sum + (p.points ?? 0), 0),
+  }));
+  return denseOverallRankFromTotals(totals);
+}
+
+export type RankTrend = 'up' | 'down' | 'unchanged';
+
+export function rankTrendFromRanks(
+  rankAfter: number | null | undefined,
+  rankBefore: number | null | undefined
+): RankTrend | null {
+  if (rankAfter == null || rankBefore == null) return null;
+  if (rankAfter < rankBefore) return 'up';
+  if (rankAfter > rankBefore) return 'down';
+  return 'unchanged';
+}
+
+export async function computeRankTrendAfterLastGame(): Promise<Map<string, RankTrend | null>> {
+  const completedMatchIds = await listCompletedMatchIdsInOrder();
+  const trends = new Map<string, RankTrend | null>();
+  if (completedMatchIds.length < 2) return trends;
+
+  const [ranksBeforeLastGame, ranksAfterLastGame] = await Promise.all([
+    computeMatchOnlyRanksAtMilestone(completedMatchIds.slice(0, -1)),
+    computeMatchOnlyRanksAtMilestone(completedMatchIds),
+  ]);
+
+  const userIds = new Set([...ranksBeforeLastGame.keys(), ...ranksAfterLastGame.keys()]);
+  for (const userId of userIds) {
+    trends.set(
+      userId,
+      rankTrendFromRanks(ranksAfterLastGame.get(userId), ranksBeforeLastGame.get(userId))
+    );
+  }
+
+  return trends;
 }
 
 export async function deleteUserById(userId: string): Promise<boolean> {
@@ -697,6 +800,7 @@ export async function attachMatchToPredictions(
       points: p.points,
       comment: p.comment,
       submittedTime: p.submittedTime,
+      penaltyWinner: p.penaltyWinner ?? null,
       cumulativeTotalPoints: p.cumulativeTotalPoints,
       overallRank: p.overallRank,
     };
