@@ -15,7 +15,7 @@ import {
   toObjectId,
 } from '../src/lib/mongodb';
 import type { EmbeddedPrediction } from '../src/db/types';
-import { sumPredictionPoints } from '../src/db/helpers';
+import { computeUserTotalPoints } from '../src/db/helpers';
 
 const dryRun = process.argv.includes('--dry-run');
 
@@ -90,7 +90,10 @@ async function main() {
         {
           $set: {
             predictions: kept,
-            totalPoints: sumPredictionPoints(kept),
+            totalPoints: computeUserTotalPoints({
+              predictions: kept,
+              tournamentPrediction: user.tournamentPrediction,
+            }),
             updatedAt: new Date(),
           },
         }

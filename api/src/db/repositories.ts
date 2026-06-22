@@ -15,8 +15,8 @@ import type {
 import {
   enrichMatchWithTeams,
   isPickableNationTeamId,
-  sumPredictionPoints,
   teamMapFromDocs,
+  computeUserTotalPoints,
 } from './helpers';
 
 /** Active users; legacy docs without `isActive` are included. */
@@ -87,9 +87,22 @@ export async function updateUserById(
 export async function recalculateUserTotalPoints(userId: string): Promise<number> {
   const user = await findUserById(userId);
   if (!user) return 0;
-  const totalPoints = sumPredictionPoints(user.predictions);
+  const totalPoints = computeUserTotalPoints(user);
   await updateUserById(userId, { totalPoints });
   return totalPoints;
+}
+
+export async function recalculateAllUserTotalPoints(): Promise<number> {
+  const users = await getUsersCollection().find({}).toArray();
+  let updated = 0;
+  for (const user of users) {
+    const totalPoints = computeUserTotalPoints(user);
+    if (totalPoints !== (user.totalPoints ?? 0)) {
+      await updateUserById(user._id.toString(), { totalPoints });
+      updated += 1;
+    }
+  }
+  return updated;
 }
 
 export async function upsertUserPrediction(
@@ -127,7 +140,10 @@ export async function upsertUserPrediction(
 
   await updateUserById(userId, {
     predictions,
-    totalPoints: sumPredictionPoints(predictions),
+    totalPoints: computeUserTotalPoints({
+      predictions,
+      tournamentPrediction: user.tournamentPrediction,
+    }),
   });
   return predictions.find((p) => p.matchId === matchId) ?? null;
 }
@@ -144,7 +160,10 @@ export async function updatePredictionPointsForMatch(
   );
   await updateUserById(userId, {
     predictions,
-    totalPoints: sumPredictionPoints(predictions),
+    totalPoints: computeUserTotalPoints({
+      predictions,
+      tournamentPrediction: user.tournamentPrediction,
+    }),
   });
 }
 
@@ -341,7 +360,10 @@ export async function applyPredictionSnapshotsAtMilestone(
 
     await updateUserById(userId, {
       predictions,
-      totalPoints: cumulativeTotalPoints,
+      totalPoints: computeUserTotalPoints({
+        predictions,
+        tournamentPrediction: user.tournamentPrediction,
+      }),
     });
     updated += 1;
   }

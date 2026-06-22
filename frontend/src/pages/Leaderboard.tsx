@@ -1,35 +1,57 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { apiService } from '../services/apiService';
 import { LeaderboardEntry } from '../types';
 import Leaderboard from '../components/Leaderboard';
 import PageHero from '../components/PageHero';
 import { spinner } from '../theme';
 
+const LEADERBOARD_LIMIT = 50;
+const REFRESH_MS = 2 * 60 * 60 * 1000;
+
 const LeaderboardPage: React.FC = () => {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    loadLeaderboard();
-  }, []);
-
-  const loadLeaderboard = async () => {
+  const loadLeaderboard = useCallback(async (showSpinner = true) => {
     try {
-      setLoading(true);
-      const res = await apiService.getTopLeaderboard(30);
+      if (showSpinner) setLoading(true);
+      const res = await apiService.getTopLeaderboard(LEADERBOARD_LIMIT);
       setLeaderboard(res.data.leaderboard || []);
     } catch (error) {
       console.error('Failed to load leaderboard:', error);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void loadLeaderboard();
+  }, [loadLeaderboard]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void loadLeaderboard(false);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [loadLeaderboard]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void loadLeaderboard(false);
+      }
+    }, REFRESH_MS);
+    return () => window.clearInterval(id);
+  }, [loadLeaderboard]);
 
   return (
     <div className="min-h-full bg-slate-50">
       <PageHero
         title="Leaderboard"
-        subtitle="Top players ranked by total points"
+        subtitle="Top 50 players ranked by total points"
         badge="Rankings"
       />
 
@@ -40,7 +62,7 @@ const LeaderboardPage: React.FC = () => {
             <p className="mt-4 text-sm text-slate-600">Loading...</p>
           </div>
         ) : (
-          <Leaderboard entries={leaderboard} title="All-time top players" />
+          <Leaderboard entries={leaderboard} title="Top 50 players" />
         )}
       </div>
     </div>
