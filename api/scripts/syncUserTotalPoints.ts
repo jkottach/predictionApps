@@ -1,7 +1,7 @@
 /**
  * Recompute users.totalPoints = match points + tournament points for every user.
  *
- * Run: npm run sync:user-total-points
+ * Run: API_ENV_FILE=.env.fcc npm run sync:user-total-points
  */
 import '../src/config/loadEnv';
 import { connectMongo, disconnectMongo } from '../src/lib/mongodb';

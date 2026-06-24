@@ -1,5 +1,6 @@
 import { ObjectId, Filter } from 'mongodb';
 import { getDb, getUsersCollection, getTeamsCollection, getMatchesCollection, toObjectId } from '../lib/mongodb';
+import { HARDCODED_GROUP_STAGE } from '../constants/tournamentTeams';
 import { canRevealLivePredictions } from '../utils/matchStatus';
 import type {
   EmbeddedPrediction,
@@ -18,6 +19,7 @@ import {
   teamMapFromDocs,
   computeUserTotalPoints,
 } from './helpers';
+import { normalizeGoalScore } from '../utils/goalScore';
 
 /** Active users; legacy docs without `isActive` are included. */
 const activeUserFilter: Filter<UserDocument> = {
@@ -116,8 +118,8 @@ export async function upsertUserPrediction(
   const entry: EmbeddedPrediction = {
     matchId,
     matchTag: prediction.matchTag,
-    team1Score: prediction.team1Score,
-    team2Score: prediction.team2Score,
+    team1Score: normalizeGoalScore(prediction.team1Score),
+    team2Score: normalizeGoalScore(prediction.team2Score),
     points: prediction.points ?? 0,
     comment: prediction.comment ?? null,
     submittedTime: prediction.submittedTime ?? new Date(),
@@ -670,6 +672,10 @@ export async function listGroupStageGroups(): Promise<GroupStageGroup[]> {
     const ids = byGroup.get(group)!;
     if (isPickableNationTeamId(m.team1)) ids.add(m.team1);
     if (isPickableNationTeamId(m.team2)) ids.add(m.team2);
+  }
+
+  if (byGroup.size === 0) {
+    return HARDCODED_GROUP_STAGE.map(({ group, teamIds }) => ({ group, teamIds: [...teamIds] }));
   }
 
   return [...byGroup.entries()]
