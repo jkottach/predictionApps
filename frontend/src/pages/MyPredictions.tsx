@@ -7,7 +7,7 @@ import PageHero from '../components/PageHero';
 import TournamentPredictionHistoryCard from '../components/TournamentPredictionHistoryCard';
 import { btnPrimary, cardPad, spinner } from '../theme';
 import { format } from 'date-fns';
-import { GroupStageGroupInfo, TournamentPrediction } from '../types';
+import { TournamentPrediction } from '../types';
 
 type ViewMode = 'mine' | 'latest-top';
 
@@ -28,7 +28,6 @@ const MyPredictions: React.FC = () => {
   const [topEarners, setTopEarners] = useState<MatchEarnerEntry[]>([]);
   const [topEarnersLoading, setTopEarnersLoading] = useState(false);
   const [tournamentPrediction, setTournamentPrediction] = useState<TournamentPrediction | null>(null);
-  const [tournamentGroups, setTournamentGroups] = useState<GroupStageGroupInfo[]>([]);
   const [officialGroupChampions, setOfficialGroupChampions] = useState<Record<string, string>>({});
   const [tournamentLoading, setTournamentLoading] = useState(false);
   const [showTournamentCard, setShowTournamentCard] = useState(false);
@@ -45,12 +44,10 @@ const MyPredictions: React.FC = () => {
       setTournamentLoading(true);
       const response = await apiService.getTournamentPrediction();
       setTournamentPrediction(response.data?.prediction ?? null);
-      setTournamentGroups(response.data?.groups ?? []);
       setOfficialGroupChampions(response.data?.officialGroupChampions ?? {});
     } catch (error) {
       console.error('Failed to fetch tournament prediction:', error);
       setTournamentPrediction(null);
-      setTournamentGroups([]);
       setOfficialGroupChampions({});
     } finally {
       setTournamentLoading(false);
@@ -246,7 +243,6 @@ const MyPredictions: React.FC = () => {
                 {showTournamentCard && (
                   <TournamentPredictionHistoryCard
                     prediction={tournamentPrediction}
-                    groups={tournamentGroups}
                     officialGroupChampions={officialGroupChampions}
                   />
                 )}

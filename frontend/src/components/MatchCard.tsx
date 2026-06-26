@@ -360,7 +360,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
             className={`w-full py-2.5 rounded-xl text-sm font-bold tracking-wide transition-all duration-200 ${
               submitted
                 ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
-                : isPredictionOpen
+                : canSubmit
                 ? 'bg-emerald-500 text-white hover:bg-emerald-600 active:scale-[0.98] shadow-lg shadow-emerald-500/30'
                 : 'bg-white/8 text-white/25 cursor-not-allowed border border-white/10'
             }`}

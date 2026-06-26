@@ -1,21 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { format } from 'date-fns';
 import { apiService } from '../services/apiService';
-import { GroupStageGroupInfo, Team, TournamentPrediction } from '../types';
 import {
-  TOURNAMENT_GROUP_COUNT,
-  TOURNAMENT_POINTS,
-  maxTournamentPoints,
-} from '../constants/points';
+  allTournamentTeams,
+  emptyGroupChampions,
+  TOURNAMENT_GROUPS,
+} from '../constants/tournamentTeams';
+import { GroupStageGroupInfo, Team, TournamentPrediction } from '../types';
 import {
   predictionCardBg,
   predictionCardLabel,
   predictionCardPitchStyle,
   predictionCardSelect,
   predictionCardShell,
-  predictionCardSpinner,
 } from '../theme';
-import { groupPickResult, groupPickSelectClass } from '../utils/tournamentPicks';
 
 const EMPTY_FINALISTS: [string, string] = ['', ''];
 const EMPTY_SEMIS: [string, string, string, string] = ['', '', '', ''];
@@ -53,7 +50,7 @@ function picksFromPrediction(
     };
   }
   return {
-    champion: pred.champion.teamId,
+    champion: pred.champion?.teamId ?? '',
     finalists: [
       pred.finalists[0]?.teamId ?? '',
       pred.finalists[1]?.teamId ?? '',
@@ -70,6 +67,26 @@ function picksFromPrediction(
 
 function uniqueCount(ids: string[]): boolean {
   return new Set(ids).size === ids.length;
+}
+
+function groupPickResult(
+  group: string,
+  predicted: string,
+  officialGroupChampions: Record<string, string>
+): 'correct' | 'wrong' | null {
+  const official = officialGroupChampions[group];
+  if (!official || !predicted) return null;
+  return predicted.toUpperCase() === official.toUpperCase() ? 'correct' : 'wrong';
+}
+
+function groupPickSelectClass(result: 'correct' | 'wrong' | null): string {
+  if (result === 'correct') {
+    return '!border-2 !border-emerald-400 focus:!border-emerald-400 focus:ring-emerald-400/70 shadow-sm shadow-emerald-500/30';
+  }
+  if (result === 'wrong') {
+    return '!border-2 !border-red-400 focus:!border-red-400 focus:ring-red-400/70 shadow-sm shadow-red-500/30';
+  }
+  return '';
 }
 
 function validateGroupPicks(
@@ -175,18 +192,20 @@ const PredictionCardShell: React.FC<PredictionCardShellProps> = ({ children, cla
   </div>
 );
 
+const HARDCODED_GROUPS = TOURNAMENT_GROUPS;
+const HARDCODED_TEAMS = allTournamentTeams();
+
 const TournamentPredictions: React.FC = () => {
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [groups, setGroups] = useState<GroupStageGroupInfo[]>([]);
-  const [groupChampions, setGroupChampions] = useState<Record<string, string>>({});
+  const teams = HARDCODED_TEAMS;
+  const groups = HARDCODED_GROUPS;
+  const [groupChampions, setGroupChampions] = useState<Record<string, string>>(emptyGroupChampions);
   const [saved, setSaved] = useState<TournamentPrediction | null>(null);
   const [officialGroupChampions, setOfficialGroupChampions] = useState<Record<string, string>>({});
   const [champion, setChampion] = useState('');
   const [finalists, setFinalists] = useState<[string, string]>([...EMPTY_FINALISTS]);
   const [semifinalists, setSemifinalists] = useState<[string, string, string, string]>([...EMPTY_SEMIS]);
-  const [deadline, setDeadline] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(true);
-  const [loading, setLoading] = useState(true);
+  const [loadingPrediction, setLoadingPrediction] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -194,54 +213,32 @@ const TournamentPredictions: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
 
-    const load = async () => {
-      setLoading(true);
-      setError('');
+    const loadSavedPrediction = async () => {
+      setLoadingPrediction(true);
       try {
-        const teamsRes = await apiService.getTeams();
+        const predRes = await apiService.getTournamentPrediction();
         if (cancelled) return;
 
-        const teamList: Team[] = teamsRes.data?.teams ?? [];
-        setTeams(teamList);
-        if (teamList.length === 0) {
-          setError('No teams available. Add matches or run the database seed script.');
-        }
+        const pred: TournamentPrediction | null = predRes.data?.prediction ?? null;
+        setSaved(pred);
+        setOfficialGroupChampions(predRes.data?.officialGroupChampions ?? {});
+        setIsOpen(predRes.data?.isOpen !== false);
 
-        try {
-          const predRes = await apiService.getTournamentPrediction();
-          if (cancelled) return;
-
-          const pred: TournamentPrediction | null = predRes.data?.prediction ?? null;
-          const groupList: GroupStageGroupInfo[] = predRes.data?.groups ?? [];
-          setSaved(pred);
-          setGroups(groupList);
-          setOfficialGroupChampions(predRes.data?.officialGroupChampions ?? {});
-          setDeadline(predRes.data?.deadline ?? null);
-          setIsOpen(predRes.data?.isOpen !== false);
-
-          const picks = picksFromPrediction(pred, groupList);
-          setChampion(picks.champion);
-          setFinalists(picks.finalists);
-          setSemifinalists(picks.semifinalists);
-          setGroupChampions(picks.groupChampions);
-        } catch (predErr: unknown) {
-          if (!cancelled) {
-            console.error('Failed to load saved tournament prediction:', predErr);
-          }
-        }
-      } catch (err: unknown) {
+        const picks = picksFromPrediction(pred, groups);
+        setChampion(picks.champion);
+        setFinalists(picks.finalists);
+        setSemifinalists(picks.semifinalists);
+        setGroupChampions(picks.groupChampions);
+      } catch (predErr: unknown) {
         if (!cancelled) {
-          const msg =
-            (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-            'Failed to load teams';
-          setError(msg);
+          console.error('Failed to load saved tournament prediction:', predErr);
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setLoadingPrediction(false);
       }
     };
 
-    void load();
+    void loadSavedPrediction();
     return () => {
       cancelled = true;
     };
@@ -334,17 +331,6 @@ const TournamentPredictions: React.FC = () => {
     setGroupChampions((prev) => ({ ...prev, [group]: teamId }));
   };
 
-  if (loading) {
-    return (
-      <PredictionCardShell>
-        <div className="flex flex-col items-center py-12 px-4">
-          <div className={predictionCardSpinner} />
-          <p className="mt-4 text-sm text-white/60">Loading tournament picks…</p>
-        </div>
-      </PredictionCardShell>
-    );
-  }
-
   const statusBadge = isOpen ? (
     <span className="px-2 py-0.5 rounded-full bg-emerald-500/70 text-[10px] font-bold text-white">
       Open
@@ -361,46 +347,16 @@ const TournamentPredictions: React.FC = () => {
         <span className="text-[10px] font-semibold text-white/50 uppercase tracking-widest">
           Tournament picks
         </span>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[10px] text-white/30 font-medium">Tournament</span>
-          {statusBadge}
-        </div>
+        {statusBadge}
       </div>
 
-      <div className="px-4 pb-2">
-        <p className="text-white/70 text-xs leading-relaxed">
-          Pick each group winner, then four semifinalists, two finalists, and your champion before
-          kickoff.
-        </p>
-        <p className="mt-2 text-white/50 text-[10px] leading-relaxed">
-          Points when results are final: {TOURNAMENT_POINTS.groupChampion} per group winner (
-          {TOURNAMENT_GROUP_COUNT} groups), {TOURNAMENT_POINTS.semifinalist} per semifinalist,{' '}
-          {TOURNAMENT_POINTS.finalist} per finalist, {TOURNAMENT_POINTS.champion} for champion — up
-          to {maxTournamentPoints()} pts.
-        </p>
-        {deadline && (
-          <p className="mt-1.5 text-white/40 text-[10px] uppercase tracking-widest">
-            {isOpen ? 'Closes' : 'Closed'}{' '}
-            {format(new Date(deadline), 'MMM dd, yyyy · h:mm a')}
-          </p>
-        )}
-        {saved && !error && (
-          <p className="mt-2 text-emerald-300/90 text-[10px] font-semibold uppercase tracking-wider">
-            Saved
-            {saved.updatedAt || saved.submittedTime
-              ? ` · ${format(new Date(saved.updatedAt ?? saved.submittedTime!), 'MMM dd, h:mm a')}`
-              : ''}
-          </p>
-        )}
-      </div>
-
-      {error && (
-        <p className="relative z-10 text-red-400 text-[11px] text-center px-4 mb-2 font-medium">
-          {error}
+      {loadingPrediction && (
+        <p className="px-4 pb-2 text-white/40 text-[10px] uppercase tracking-wider">
+          Loading your saved picks…
         </p>
       )}
 
-      {saved && !loading && (
+      {saved && !loadingPrediction && (
         <div className="mx-4 mb-3 flex items-center justify-between rounded-xl border border-white/15 bg-white/5 px-4 py-3">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40">
             Tournament total points
@@ -411,11 +367,16 @@ const TournamentPredictions: React.FC = () => {
         </div>
       )}
 
+      {error && (
+        <p className="relative z-10 text-red-400 text-[11px] text-center px-4 mb-2 font-medium">
+          {error}
+        </p>
+      )}
+
       <div className="mx-4 border-t border-white/[0.08]" />
 
       <div className="px-4 py-4 space-y-4">
-        {groups.length > 0 && (
-          <div>
+        <div>
             <p className={predictionCardLabel}>Group champions (winner of each group)</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {groups.map(({ group, teams: groupTeams }) => {
@@ -425,32 +386,34 @@ const TournamentPredictions: React.FC = () => {
                   officialGroupChampions
                 );
                 return (
-                <div key={group}>
-                  <label className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1">
-                    Group {group}
-                  </label>
-                  <select
-                    id={`group-champion-${group}`}
-                    value={groupChampions[group] ?? ''}
-                    disabled={!isOpen || submitting}
-                    onChange={(e) => updateGroupChampion(group, e.target.value)}
-                    className={`${predictionCardSelect} ${groupPickSelectClass(pickResult)}`}
-                  >
-                    <option value="" className="text-slate-900" />
-                    {groupTeams.map((t) => (
-                      <option key={t.teamId} value={t.teamId} className="text-slate-900">
-                        {t.teamName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                  <div key={group}>
+                    <label
+                      className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1"
+                      htmlFor={`group-champion-${group}`}
+                    >
+                      Group {group}
+                    </label>
+                    <select
+                      id={`group-champion-${group}`}
+                      value={groupChampions[group] ?? ''}
+                      disabled={!isOpen || submitting}
+                      onChange={(e) => updateGroupChampion(group, e.target.value)}
+                      className={`${predictionCardSelect} ${groupPickSelectClass(pickResult)}`}
+                    >
+                        <option value="" className="text-slate-900" />
+                        {groupTeams.map((t) => (
+                          <option key={t.teamId} value={t.teamId} className="text-slate-900">
+                            {t.teamName}
+                          </option>
+                        ))}
+                      </select>
+                  </div>
                 );
               })}
             </div>
           </div>
-        )}
 
-        {groups.length > 0 && <div className="border-t border-white/[0.08] pt-2" />}
+        <div className="border-t border-white/[0.08] pt-2" />
 
         <div>
           <p className={predictionCardLabel}>Knockout — semifinalists (4 teams)</p>
@@ -462,7 +425,7 @@ const TournamentPredictions: React.FC = () => {
                 value={semifinalists[i]}
                 onChange={(id) => updateSemifinalist(i, id)}
                 teams={teams}
-                disabled={!isOpen || submitting || teams.length === 0}
+                disabled={!isOpen || submitting}
                 placeholder={`Semifinalist ${i + 1}`}
                 excludeIds={[
                   champion,

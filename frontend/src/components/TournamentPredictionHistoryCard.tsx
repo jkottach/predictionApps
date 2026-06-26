@@ -1,11 +1,11 @@
 import React from 'react';
-import { GroupStageGroupInfo, TournamentPrediction } from '../types';
+import { TOURNAMENT_GROUPS } from '../constants/tournamentTeams';
+import { TournamentPrediction } from '../types';
 import { cardPad } from '../theme';
 import { groupPickBorderClass, groupPickResult } from '../utils/tournamentPicks';
 
 interface TournamentPredictionHistoryCardProps {
   prediction: TournamentPrediction;
-  groups: GroupStageGroupInfo[];
   officialGroupChampions: Record<string, string>;
 }
 
@@ -16,7 +16,6 @@ const teamPill =
 
 const TournamentPredictionHistoryCard: React.FC<TournamentPredictionHistoryCardProps> = ({
   prediction,
-  groups,
   officialGroupChampions,
 }) => {
   const groupPicks = prediction.groupChampions ?? [];
@@ -36,31 +35,29 @@ const TournamentPredictionHistoryCard: React.FC<TournamentPredictionHistoryCardP
       </div>
 
       <div className="space-y-4">
-        {groups.length > 0 && (
-          <div>
-            <p className={sectionLabel}>Group champions</p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-              {groups.map(({ group }) => {
-                const pick = groupPickByLetter.get(group);
-                const result = groupPickResult(
-                  group,
-                  pick?.teamId ?? '',
-                  officialGroupChampions
-                );
-                return (
-                  <div key={group}>
-                    <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-slate-500">
-                      Group {group}
-                    </p>
-                    <div className={`${teamPill} ${groupPickBorderClass(result)}`}>
-                      {pick?.teamName ?? '—'}
-                    </div>
+        <div>
+          <p className={sectionLabel}>Group champions</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            {TOURNAMENT_GROUPS.map(({ group }) => {
+              const pick = groupPickByLetter.get(group);
+              const result = groupPickResult(
+                group,
+                pick?.teamId ?? '',
+                officialGroupChampions
+              );
+              return (
+                <div key={group}>
+                  <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-slate-500">
+                    Group {group}
+                  </p>
+                  <div className={`${teamPill} ${groupPickBorderClass(result)}`}>
+                    {pick?.teamName ?? '—'}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
-        )}
+        </div>
 
         <div>
           <p className={sectionLabel}>Semifinalists</p>
