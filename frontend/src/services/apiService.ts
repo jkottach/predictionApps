@@ -122,6 +122,18 @@ class ApiService {
     return this.client.get('/tournament-predictions');
   }
 
+  getCommunityTournamentPredictions() {
+    return this.client.get('/tournament-predictions/community', {
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
+  }
+
+  getUserTournamentPrediction(userId: string) {
+    return this.client.get(`/tournament-predictions/user/${userId}`, {
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
+  }
+
   submitTournamentPrediction(data: {
     champion: string;
     finalists: [string, string];
@@ -145,6 +157,13 @@ class ApiService {
     return this.client.get('/predictions/results/list', {
       params: { page, limit },
     });
+  }
+
+  getUserPredictionsFromResultsByUserId(userId: string, page?: number, limit?: number) {
+    return this.client.get(`/predictions/user/${userId}/results/list`, {
+      params: { page, limit },
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
   }
 
   updatePrediction(predictionId: string, data: Record<string, unknown>) {

@@ -86,6 +86,20 @@ export interface Prediction {
   totalPoints?: number;
   overallRank?: number | null;
   previousOverallRank?: number | null;
+  historicRank?: {
+    finalRank: number;
+    dailyRank: number;
+  } | null;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  rankTrend?: 'up' | 'down' | 'unchanged' | null;
+  totalPoints: number;
+  name: string;
+  state: string;
+  userId: string;
+  email: string;
 }
 
 export interface MatchEarnerEntry {
@@ -95,6 +109,11 @@ export interface MatchEarnerEntry {
   points: number;
   team1Score: number;
   team2Score: number;
+}
+
+export interface MatchSlotEarners {
+  match: Match;
+  earners: MatchEarnerEntry[];
 }
 
 export interface LiveMatchPredictionEntry {
@@ -112,14 +131,45 @@ export interface LiveMatchPredictionsGroup {
   predictions: LiveMatchPredictionEntry[];
 }
 
-export interface LeaderboardEntry {
-  rank: number;
-  rankTrend?: 'up' | 'down' | 'unchanged' | null;
-  totalPoints: number;
-  name: string;
-  state: string;
+export interface CommunityTeamCount {
+  teamId: string;
+  teamName: string;
+  countryLogo?: string | null;
+  count: number;
+  pct?: number;
+}
+
+export interface CommunityTournamentConsensus {
+  champion: CommunityTeamCount[];
+  groupChampions: Record<string, CommunityTeamCount[]>;
+  semifinalists: CommunityTeamCount[];
+  finalists: CommunityTeamCount[];
+}
+
+export interface CommunityTournamentPick {
   userId: string;
-  email: string;
+  name: string;
+  champion: TournamentTeamPick;
+  finalists: TournamentTeamPick[];
+  semifinalists: TournamentTeamPick[];
+  groupChampions?: GroupChampionPick[];
+  points: number;
+  submittedTime: string;
+}
+
+export interface CommunityTournamentPredictionsResponse {
+  unlocksAt: string;
+  submittedCount: number;
+  officialGroupChampions: Record<string, string>;
+  consensus: CommunityTournamentConsensus;
+  picks: CommunityTournamentPick[];
+}
+
+export interface CommunityTournamentLockedResponse {
+  error: string;
+  unlocksAt: string;
+  submittedCount: number;
+  officialGroupChampions: Record<string, string>;
 }
 
 export interface AuthState {
