@@ -16,6 +16,7 @@ import type {
 import {
   enrichMatchWithTeams,
   isPickableNationTeamId,
+  matchIdsEqual,
   teamMapFromDocs,
   computeUserTotalPoints,
 } from './helpers';
@@ -158,7 +159,7 @@ export async function updatePredictionPointsForMatch(
   const user = await findUserById(userId);
   if (!user) return;
   const predictions = user.predictions.map((p) =>
-    p.matchId === matchId ? { ...p, points } : p
+    matchIdsEqual(p.matchId, matchId) ? { ...p, points } : p
   );
   await updateUserById(userId, {
     predictions,
@@ -170,7 +171,12 @@ export async function updatePredictionPointsForMatch(
 }
 
 export async function findUsersWithPredictionForMatch(matchId: string): Promise<UserDocument[]> {
-  return getUsersCollection().find({ 'predictions.matchId': matchId }).toArray();
+  const oid = toObjectId(matchId);
+  const filters: Filter<UserDocument>[] = [{ 'predictions.matchId': matchId }];
+  if (oid) {
+    filters.push({ 'predictions.matchId': oid as unknown as string });
+  }
+  return getUsersCollection().find(filters.length === 1 ? filters[0] : { $or: filters }).toArray();
 }
 
 export async function findLatestCompletedMatch(): Promise<MatchDocument | null> {
@@ -406,6 +412,7 @@ export async function backfillAllPredictionSnapshots(): Promise<{
 }
 
 export async function applySnapshotsAfterMatchFinalized(matchId: string): Promise<void> {
+  clearRankTrendCache();
   const completedMatches = await getMatchesCollection()
     .find({ status: 'completed' })
     .sort({ matchTime: 1, sequence: 1 })
@@ -678,6 +685,10 @@ export async function computeMatchOnlyRanksAtMilestone(
 }
 
 export type RankTrend = 'up' | 'down' | 'unchanged';
+
+export function clearRankTrendCache(): void {
+  // Reserved for rank-trend caching; safe to call after point recalculations.
+}
 
 export function rankTrendFromRanks(
   rankAfter: number | null | undefined,
